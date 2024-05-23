@@ -1,26 +1,75 @@
 version: '3.8'
 
 services:
-  db:
-    image: postgres:latest
+  master:
+    image: citusdata/citus:10.1
     environment:
-      POSTGRES_USER: your_user
-      POSTGRES_PASSWORD: your_password
-      POSTGRES_DB: cocktails
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+      POSTGRES_USER: citus
+      POSTGRES_PASSWORD: citus
+      POSTGRES_DB: citus
     ports:
       - "5432:5432"
-
-  web:
-    build: .
-    command: flask run --host=0.0.0.0
+    networks:
+      - citus_network
+    deploy:
+      mode: replicated
+      replicas: 1
     volumes:
-      - .:/app
+      - master_data:/var/lib/postgresql/data
+
+  worker1:
+    image: citusdata/citus:10.1
+    environment:
+      POSTGRES_USER: citus
+      POSTGRES_PASSWORD: citus
+      POSTGRES_DB: citus
+    networks:
+      - citus_network
+    deploy:
+      mode: replicated
+      replicas: 1
+    volumes:
+      - worker1_data:/var/lib/postgresql/data
+
+  worker2:
+    image: citusdata/citus:10.1
+    environment:
+      POSTGRES_USER: citus
+      POSTGRES_PASSWORD: citus
+      POSTGRES_DB: citus
+    networks:
+      - citus_network
+    deploy:
+      mode: replicated
+      replicas: 1
+    volumes:
+      - worker2_data:/var/lib/postgresql/data
+
+  coordinator:
+    image: citusdata/citus:10.1
+    environment:
+      POSTGRES_USER: citus
+      POSTGRES_PASSWORD: citus
+      POSTGRES_DB: citus
     ports:
-      - "5000:5000"
+      - "5432:5432"
+    networks:
+      - citus_network
     depends_on:
-      - db
+      - worker1
+      - worker2
+    command: >
+      bash -c "until pg_isready -h master; do sleep 1; done;
+               until pg_isready -h worker1; do sleep 1; done;
+               until pg_isready -h worker2; do sleep 1; done;
+               psql -h master -U citus -d citus -c \"SELECT * from master_add_node('worker1', 5432);\"
+               psql -h master -U citus -d citus -c \"SELECT * from master_add_node('worker2', 5432);\""
+
+networks:
+  citus_network:
+    driver: bridge
 
 volumes:
-  postgres_data:
+  master_data:
+  worker1_data:
+  worker2_data:
