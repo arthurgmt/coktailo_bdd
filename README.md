@@ -23,6 +23,7 @@ Initialisation de Citus
 Pour initialiser Citus, exécutez les commandes suivantes après avoir démarré les conteneurs :
 
 docker-compose up -d
+
 docker-compose exec master psql -U citus -d citus -c "SELECT * from master_add_node('worker1', 5432);"
 docker-compose exec master psql -U citus -d citus -c "SELECT * from master_add_node('worker2', 5432);"
 
